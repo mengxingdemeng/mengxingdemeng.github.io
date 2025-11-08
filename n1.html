@@ -1,35 +1,187 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>我的作品集</title>
-  <!-- 引入Bootstrap（免费CDN） -->
+  <title>猜数字小游戏</title>
+  <!-- 引入Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- 引入Font Awesome图标 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      background-color: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 0;
+    }
+    .game-container {
+      background-color: white;
+      padding: 2.5rem;
+      border-radius: 15px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+      max-width: 500px;
+      width: 90%;
+    }
+    .game-title {
+      color: #2c3e50;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .result-area {
+      min-height: 60px;
+      margin: 1rem 0;
+      padding: 1rem;
+      border-radius: 8px;
+      transition: all 0.3s;
+    }
+    .history-list {
+      max-height: 150px;
+      overflow-y: auto;
+      margin-top: 1rem;
+      padding: 0.5rem;
+      border: 1px solid #eee;
+      border-radius: 8px;
+    }
+    .history-item {
+      margin: 0.3rem 0;
+      padding: 0.3rem;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .success {
+      background-color: #dcfce7;
+      color: #166534;
+    }
+    .error-high {
+      background-color: #fee2e2;
+      color: #b91c1c;
+    }
+    .error-low {
+      background-color: #dbeafe;
+      color: #1e40af;
+    }
+  </style>
 </head>
 <body>
-  <!-- 导航栏 -->
-  <nav class="navbar">
-    <a href="#about">关于我</a>
-    <a href="#works">作品集</a>
-  </nav>
-
-  <!-- 关于我 -->
-  <section id="about">
-    <h2>你好，我是XXX</h2>
-    <p>一名热爱设计的开发者...</p>
-  </section>
-
-  <!-- 作品集 -->
-  <section id="works">
-    <div class="card">
-      <img src="作品1.jpg" alt="作品1">
-      <h3>项目1</h3>
+  <div class="game-container">
+    <h1 class="game-title"><i class="fas fa-gamepad me-2"></i>猜数字小游戏</h1>
+    
+    <div class="alert alert-info">
+      <p>游戏规则：系统会随机生成一个1-100之间的整数，你有10次机会猜出这个数字</p>
     </div>
-  </section>
 
-  <!-- 引入JavaScript（可选，用于交互） -->
+    <div class="input-group mb-3">
+      <input type="number" id="guessInput" class="form-control" placeholder="请输入你猜的数字（1-100）" min="1" max="100">
+      <button id="guessBtn" class="btn btn-primary">猜一猜</button>
+      <button id="resetBtn" class="btn btn-secondary ms-2">重新开始</button>
+    </div>
+
+    <div class="result-area alert"></div>
+
+    <div>
+      <p>剩余次数：<span id="remaining" class="badge bg-danger">10</span></p>
+      <p>历史记录：</p>
+      <div class="history-list" id="history"></div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // 游戏核心变量
+    let targetNumber; // 目标数字
+    let remainingGuesses = 10; // 剩余猜测次数
+    let gameActive = true; // 游戏是否活跃
+
+    // DOM元素
+    const guessInput = document.getElementById('guessInput');
+    const guessBtn = document.getElementById('guessBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const resultArea = document.getElementById('resultArea');
+    const remainingEl = document.getElementById('remaining');
+    const historyEl = document.getElementById('history');
+
+    // 初始化游戏
+    function initGame() {
+      // 生成1-100的随机数
+      targetNumber = Math.floor(Math.random() * 100) + 1;
+      remainingGuesses = 10;
+      gameActive = true;
+      remainingEl.textContent = remainingGuesses;
+      resultArea.textContent = '';
+      resultArea.className = 'result-area alert';
+      historyEl.innerHTML = '';
+      guessInput.value = '';
+      guessInput.disabled = false;
+      guessBtn.disabled = false;
+    }
+
+    // 处理猜测逻辑
+    function handleGuess() {
+      if (!gameActive) return;
+
+      const userGuess = parseInt(guessInput.value);
+      
+      // 验证输入
+      if (isNaN(userGuess) || userGuess < 1 || userGuess > 100) {
+        showResult('请输入1-100之间的有效数字', 'warning');
+        return;
+      }
+
+      remainingGuesses--;
+      remainingEl.textContent = remainingGuesses;
+
+      // 记录历史
+      addHistory(userGuess);
+
+      // 判断结果
+      if (userGuess === targetNumber) {
+        showResult(`恭喜你！猜对了！答案就是${targetNumber}`, 'success');
+        endGame(true);
+      } else if (remainingGuesses === 0) {
+        showResult(`游戏结束！正确答案是${targetNumber}`, 'danger');
+        endGame(false);
+      } else if (userGuess > targetNumber) {
+        showResult('猜大了！再试试小一点的数字', 'error-high');
+      } else {
+        showResult('猜小了！再试试大一点的数字', 'error-low');
+      }
+
+      guessInput.value = '';
+      guessInput.focus();
+    }
+
+    // 显示结果提示
+    function showResult(message, type) {
+      resultArea.textContent = message;
+      resultArea.className = `result-area alert ${type}`;
+    }
+
+    // 添加历史记录
+    function addHistory(guess) {
+      const item = document.createElement('div');
+      item.className = `history-item ${guess > targetNumber ? 'error-high' : 'error-low'}`;
+      item.textContent = `你猜的是：${guess}`;
+      historyEl.prepend(item); // 最新记录放前面
+    }
+
+    // 结束游戏
+    function endGame(isWin) {
+      gameActive = false;
+      guessInput.disabled = true;
+      guessBtn.disabled = true;
+    }
+
+    // 事件监听
+    guessBtn.addEventListener('click', handleGuess);
+    resetBtn.addEventListener('click', initGame);
+    guessInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleGuess(); // 支持回车键提交
+    });
+
+    // 初始化游戏
+    initGame();
+  </script>
 </body>
 </html>

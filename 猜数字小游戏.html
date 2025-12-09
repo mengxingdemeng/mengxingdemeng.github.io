@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>猜数字小游戏</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 配置Tailwind自定义主题 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4F46E5',
+                        success: '#10B981',
+                        warning: '#F59E0B',
+                        danger: '#EF4444',
+                        neutral: '#6B7280',
+                    },
+                    fontFamily: {
+                        sans: ['PingFang SC', 'Helvetica Neue', 'Arial', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <!-- 自定义工具类（重点适配移动端） -->
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            /* 移动端游戏卡片 */
+            .game-card {
+                @apply bg-white rounded-2xl shadow-xl p-4 md:p-8 w-full max-w-md mx-auto;
+            }
+            /* 移动端按钮优化 */
+            .btn-primary {
+                @apply bg-primary text-white py-3 px-6 rounded-lg font-medium hover:bg-primary/90 active:bg-primary/80 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/50 touch-manipulation;
+            }
+            .btn-secondary {
+                @apply bg-white border border-primary text-primary py-3 px-6 rounded-lg font-medium hover:bg-primary/5 active:bg-primary/10 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/50 touch-manipulation;
+            }
+            /* 移动端输入框优化 */
+            .input-field {
+                @apply w-full py-3 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 text-base md:text-lg;
+            }
+            .hint-box {
+                @apply py-3 px-4 rounded-lg mt-4 text-center font-medium text-base md:text-lg;
+            }
+            /* 移动端触摸反馈 */
+            .touch-active {
+                @apply active:scale-95 transition-transform duration-200;
+            }
+        }
+    </style>
+    <style>
+        /* 全局移动端优化 */
+        body {
+            -webkit-tap-highlight-color: transparent; /* 去除移动端点击高亮 */
+        }
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none; /* 去除移动端数字输入框上下箭头 */
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield; /* 火狐去除数字箭头 */
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 to-purple-50 min-h-screen flex flex-col justify-center py-6 px-3 md:py-10 md:px-4 font-sans">
+    <div class="game-card">
+        <h1 class="text-[clamp(1.5rem,5vw,2.5rem)] font-bold text-center text-gray-800 mb-2">猜数字小游戏</h1>
+        <p class="text-neutral text-center mb-5 text-sm md:text-base">系统生成0-100随机数，你有6次机会猜对它！</p>
+        
+        <!-- 剩余次数显示（移动端放大触控区域） -->
+        <div class="text-center mb-5 py-2">
+            <span class="text-neutral text-sm md:text-base">剩余次数：</span>
+            <span id="remaining-times" class="text-warning text-2xl md:text-3xl font-bold">6</span>
+        </div>
+        
+        <!-- 输入区域（移动端适配flex布局） -->
+        <div class="flex flex-col sm:flex-row gap-3 mb-4">
+            <input 
+                type="number" 
+                id="guess-input" 
+                class="input-field" 
+                placeholder="0-100之间的数字" 
+                min="0" 
+                max="100"
+                disabled
+            >
+            <button id="guess-btn" class="btn-primary touch-active sm:shrink-0" disabled>猜一猜</button>
+        </div>
+        
+        <!-- 操作按钮（移动端100%宽度） -->
+        <div class="flex gap-3 justify-center mb-5">
+            <button id="start-btn" class="btn-primary w-full touch-active">开始游戏</button>
+            <button id="restart-btn" class="btn-secondary w-full touch-active hidden">再来一局</button>
+        </div>
+        
+        <!-- 提示信息（移动端适配文字大小） -->
+        <div id="hint-message" class="hint-box hidden"></div>
+    </div>
+
+    <script>
+        // DOM元素获取
+        const startBtn = document.getElementById('start-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const guessBtn = document.getElementById('guess-btn');
+        const guessInput = document.getElementById('guess-input');
+        const remainingTimesEl = document.getElementById('remaining-times');
+        const hintMessage = document.getElementById('hint-message');
+        
+        // 游戏状态变量
+        let targetNumber = 0;
+        let remainingTimes = 6;
+        let gameStarted = false;
+        
+        // 初始化游戏（适配移动端状态）
+        function initGame() {
+            // 生成0-100随机数
+            targetNumber = Math.floor(Math.random() * 101);
+            remainingTimes = 6;
+            gameStarted = true;
+            
+            // 更新UI（移动端优先）
+            remainingTimesEl.textContent = remainingTimes;
+            guessInput.value = '';
+            guessInput.disabled = false;
+            guessBtn.disabled = false;
+            startBtn.disabled = true;
+            startBtn.classList.add('opacity-50');
+            restartBtn.classList.add('hidden');
+            hintMessage.classList.add('hidden');
+            hintMessage.textContent = '';
+            hintMessage.className = 'hint-box hidden';
+            
+            // 移动端自动聚焦输入框（提升体验）
+            setTimeout(() => {
+                if (window.innerWidth < 768) {
+                    guessInput.focus();
+                }
+            }, 300);
+        }
+        
+        // 猜数字核心逻辑
+        function checkGuess() {
+            const guessValue = parseInt(guessInput.value);
+            
+            // 输入验证（移动端友好提示）
+            if (isNaN(guessValue) || guessValue < 0 || guessValue > 100) {
+                showHint('请输入0-100之间的有效数字！', 'danger');
+                guessInput.focus();
+                return;
+            }
+            
+            // 减少剩余次数
+            remainingTimes--;
+            remainingTimesEl.textContent = remainingTimes;
+            
+            // 结果判断
+            if (guessValue === targetNumber) {
+                showHint(`恭喜你！猜对了🎉 数字就是${targetNumber}`, 'success');
+                endGame(true);
+            } else if (remainingTimes === 0) {
+                showHint(`游戏结束😥 正确数字是${targetNumber}`, 'danger');
+                endGame(false);
+            } else if (guessValue > targetNumber) {
+                showHint(`猜大了😜 还剩${remainingTimes}次机会`, 'warning');
+            } else {
+                showHint(`猜小了😝 还剩${remainingTimes}次机会`, 'warning');
+            }
+            
+            // 清空输入并聚焦（移动端体验优化）
+            guessInput.value = '';
+            guessInput.focus();
+        }
+        
+        // 结束游戏
+        function endGame(isWin) {
+            gameStarted = false;
+            guessInput.disabled = true;
+            guessBtn.disabled = true;
+            startBtn.disabled = false;
+            startBtn.classList.remove('opacity-50');
+            restartBtn.classList.remove('hidden');
+        }
+        
+        // 显示提示信息（移动端配色优化）
+        function showHint(message, type) {
+            hintMessage.textContent = message;
+            hintMessage.classList.remove('hidden');
+            
+            // 重置样式 + 根据类型设置
+            hintMessage.className = 'hint-box';
+            switch(type) {
+                case 'success':
+                    hintMessage.classList.add('bg-success/10', 'text-success');
+                    break;
+                case 'danger':
+                    hintMessage.classList.add('bg-danger/10', 'text-danger');
+                    break;
+                case 'warning':
+                    hintMessage.classList.add('bg-warning/10', 'text-warning');
+                    break;
+                default:
+                    hintMessage.classList.add('bg-neutral/10', 'text-neutral');
+            }
+        }
+        
+        // 事件绑定（适配移动端触摸）
+        startBtn.addEventListener('click', initGame);
+        restartBtn.addEventListener('click', initGame);
+        guessBtn.addEventListener('click', checkGuess);
+        
+        // 回车/换行触发（移动端软键盘适配）
+        guessInput.addEventListener('keypress', (e) => {
+            if ((e.key === 'Enter' || e.key === 'NumpadEnter') && gameStarted) {
+                e.preventDefault(); // 防止移动端页面滚动
+                checkGuess();
+            }
+        });
+        
+        // 页面加载完成后聚焦开始按钮（移动端优先）
+        window.addEventListener('load', () => {
+            if (window.innerWidth < 768) {
+                startBtn.focus({ preventScroll: true }); // 防止滚动到按钮
+            } else {
+                startBtn.focus();
+            }
+        });
+        
+        // 适配移动端屏幕旋转
+        window.addEventListener('orientationchange', () => {
+            if (gameStarted) {
+                guessInput.focus({ preventScroll: true });
+            }
+        });
+    </script>
+</body>
+</html>

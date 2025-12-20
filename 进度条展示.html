@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>游戏进度条特效演示（全功能+气泡版）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #1a1a2e; /* 深色背景 */
+            font-family: "Microsoft YaHei", sans-serif;
+            padding: 20px;
+        }
+        /* 控制按钮容器 */
+        .control-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap; /* 适配小屏幕 */
+        }
+        /* 通用按钮样式 */
+        button {
+            padding: 10px 24px;
+            font-size: 16px;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        /* 自动加载按钮 */
+        #startBtn {
+            background: linear-gradient(45deg, #4285f4, #00d8ff);
+            box-shadow: 0 4px 15px rgba(0, 216, 255, 0.3);
+        }
+        #startBtn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0, 216, 255, 0.5);
+        }
+        #startBtn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        /* 手动控制按钮 */
+        .manual-btn {
+            background: linear-gradient(45deg, #9c27b0, #e91e63);
+            box-shadow: 0 4px 15px rgba(233, 30, 99, 0.3);
+        }
+        .manual-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(233, 30, 99, 0.5);
+        }
+        /* 进度条容器 */
+        #progressContainer {
+            position: relative;
+            width: 600px;
+            height: 60px;
+            margin-bottom: 20px;
+        }
+        /* 进度条画布 */
+        #progressCanvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 5px; /* 圆角 */
+            background-color: #2d2d44;
+        }
+        /* 修复白光（流光）：仅在进度条内显示 */
+        #lightMask {
+            position: absolute;
+            top: 5px; /* 进度条内边距 */
+            left: 5px;
+            height: calc(100% - 10px); /* 匹配进度条内区域 */
+            width: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+            pointer-events: none;
+            border-radius: 3px;
+            clip-path: inset(0 calc(100% - 0px) 0 0);
+        }
+        /* 进度百分比数字（右侧） */
+        #progressNumber {
+            position: absolute;
+            right: -60px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 24px;
+            font-weight: bold;
+            color: #00d8ff;
+            text-shadow: 0 0 10px rgba(0, 216, 255, 0.5);
+            transition: all 0.2s ease;
+        }
+        /* 数字缩放弹跳动画类 */
+        .number-bounce {
+            animation: numberBounce 0.3s ease-in-out;
+        }
+        /* 加载完成提示 */
+        #completeTip {
+            margin-top: 10px;
+            font-size: 28px;
+            color: #4cd964;
+            text-shadow: 0 0 15px rgba(76, 217, 100, 0.6);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        /* 数字递增记录区域 */
+        #numberRecord {
+            width: 600px;
+            height: 120px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            background-color: #2d2d44;
+            padding: 10px;
+            overflow-y: auto;
+            color: #fff;
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+        /* 动画定义 */
+        /* 流光前进 */
+        @keyframes lightMove {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(200%); }
+        }
+        /* 流光后退 */
+        @keyframes lightMoveReverse {
+            0% { transform: translateX(200%); }
+            100% { transform: translateX(-100%); }
+        }
+        /* 数字弹跳 */
+        @keyframes numberBounce {
+            0% { transform: translateY(-50%) scale(1); }
+            50% { transform: translateY(-50%) scale(1.3); text-shadow: 0 0 15px rgba(0, 216, 255, 0.8); }
+            100% { transform: translateY(-50%) scale(1); }
+        }
+        /* 滚动条美化 */
+        #numberRecord::-webkit-scrollbar {
+            width: 6px;
+        }
+        #numberRecord::-webkit-scrollbar-track {
+            background: #2d2d44;
+            border-radius: 3px;
+        }
+        #numberRecord::-webkit-scrollbar-thumb {
+            background: #00d8ff;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 控制按钮容器（自动+手动） -->
+    <div class="control-container">
+        <button id="startBtn">自动加载（0→100）</button>
+        <button class="manual-btn" id="addBtn">+1</button>
+        <button class="manual-btn" id="minusBtn">-1</button>
+        <button class="manual-btn" id="resetBtn">重置</button>
+    </div>
+    <!-- 数字递增记录区域 -->
+    <div id="numberRecord">数字变化记录：<br></div>
+    <!-- 进度条容器 -->
+    <div id="progressContainer">
+        <canvas id="progressCanvas"></canvas>
+        <div id="lightMask"></div>
+        <!-- 进度条右侧的百分比数字 -->
+        <div id="progressNumber">0%</div>
+    </div>
+    <!-- 加载完成提示 -->
+    <div id="completeTip">加载完成！</div>
+
+    <script>
+        // 获取DOM元素
+        const startBtn = document.getElementById('startBtn');
+        const addBtn = document.getElementById('addBtn');
+        const minusBtn = document.getElementById('minusBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const canvas = document.getElementById('progressCanvas');
+        const ctx = canvas.getContext('2d');
+        const lightMask = document.getElementById('lightMask');
+        const progressNumber = document.getElementById('progressNumber');
+        const completeTip = document.getElementById('completeTip');
+        const numberRecord = document.getElementById('numberRecord');
+
+        // 进度条核心参数
+        const barWidth = 600;
+        const barHeight = 60;
+        canvas.width = barWidth;
+        canvas.height = barHeight;
+        let targetProgressPercent = 0; // 目标百分比
+        let currentProgressPercent = 0; // 当前显示百分比（缓动）
+        let isAutoLoading = false; // 是否自动加载
+        let autoLoadTimer = null; // 自动加载定时器
+        let progressDirection = 'forward'; // 进度方向：forward/backward
+        const easeFactor = 0.2; // 缓动系数
+
+        // **************************
+        // 气泡特效：初始化气泡数组（新增）
+        // **************************
+        const bubbles = [];
+        const bubbleCount = 10; // 气泡数量（可调整）
+        // 初始化气泡（随机大小、位置、速度）
+        function initBubbles() {
+            bubbles.length = 0;
+            for (let i = 0; i < bubbleCount; i++) {
+                bubbles.push({
+                    x: Math.random() * barWidth * 0.8,
+                    y: Math.random() * (barHeight - 20) + 10,
+                    r: Math.random() * 5 + 3, // 半径3-8px
+                    alpha: Math.random() * 0.5 + 0.3, // 透明度0.3-0.8
+                    speedX: Math.random() * 0.3 + 0.1, // 水平速度
+                    speedY: Math.random() * 0.5 - 0.25, // 垂直速度（-0.25~0.25）
+                });
+            }
+        }
+        initBubbles();
+
+        // 绘制进度条基础层
+        function drawProgressBase() {
+            ctx.clearRect(0, 0, barWidth, barHeight);
+            // 进度条底色
+            ctx.fillStyle = '#2d2d44';
+            ctx.fillRect(0, 0, barWidth, barHeight);
+            // 进度条内底层（深灰色）
+            ctx.fillStyle = '#3a3a55';
+            ctx.fillRect(5, 5, barWidth - 10, barHeight - 10);
+        }
+
+        // **************************
+        // 核心：更新进度条（保留所有功能+气泡+白光修复）
+        // **************************
+        function updateProgressBar() {
+            // 1. 缓动动画：当前进度趋近目标进度
+            const diff = targetProgressPercent - currentProgressPercent;
+            if (Math.abs(diff) < 0.1) {
+                currentProgressPercent = targetProgressPercent;
+            } else {
+                currentProgressPercent += diff * easeFactor;
+            }
+
+            // 2. 确定进度方向
+            progressDirection = diff > 0 ? 'forward' : (diff < 0 ? 'backward' : progressDirection);
+
+            // 3. 绘制基础层
+            drawProgressBase();
+
+            // 4. 计算填充宽度
+            const progress = currentProgressPercent / 100;
+            const fillWidth = barWidth * progress - 10; // 减内边距
+
+            // 5. 绘制进度填充块（前进/后退不同色效，保留原有功能）
+            if (fillWidth > 0) {
+                let fillGradient, shadowColor;
+                // 前进：蓝青色渐变+蓝色发光；后退：橙红色渐变+红色发光
+                if (progressDirection === 'forward') {
+                    fillGradient = ctx.createLinearGradient(0, 0, barWidth, 0);
+                    fillGradient.addColorStop(0, '#4285f4');
+                    fillGradient.addColorStop(1, '#00d8ff');
+                    shadowColor = 'rgba(0, 216, 255, 0.7)';
+                } else {
+                    fillGradient = ctx.createLinearGradient(0, 0, barWidth, 0);
+                    fillGradient.addColorStop(0, '#ff9800');
+                    fillGradient.addColorStop(1, '#f44336');
+                    shadowColor = 'rgba(244, 67, 54, 0.7)';
+                }
+
+                // 边缘发光特效（保留）
+                ctx.shadowColor = shadowColor;
+                ctx.shadowBlur = 15;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+
+                // 绘制填充块
+                ctx.fillStyle = fillGradient;
+                ctx.fillRect(5, 5, fillWidth, barHeight - 10);
+
+                // 重置阴影
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+
+                // 6. 绘制气泡特效（新增：仅在填充区域内）
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(5, 5, fillWidth, barHeight - 10); // 裁剪区域：填充区域
+                ctx.clip(); // 只在填充区域内绘制气泡
+                bubbles.forEach(bubble => {
+                    // 更新气泡位置（浮动）
+                    bubble.x += bubble.speedX;
+                    bubble.y += bubble.speedY;
+
+                    // 气泡超出范围则重置位置
+                    if (bubble.x > fillWidth - bubble.r) bubble.x = 5 + bubble.r;
+                    if (bubble.y < 5 + bubble.r) bubble.y = 5 + bubble.r;
+                    if (bubble.y > barHeight - 5 - bubble.r) bubble.y = barHeight - 5 - bubble.r;
+
+                    // 绘制气泡（半透明+白色边框）
+                    ctx.beginPath();
+                    ctx.arc(bubble.x, bubble.y, bubble.r, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255,255,255,${bubble.alpha * 0.5})`;
+                    ctx.fill();
+                    ctx.strokeStyle = `rgba(255,255,255,${bubble.alpha})`;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                });
+                ctx.restore();
+            }
+
+            // 7. 修复白光（流光）：仅在填充区域内，且方向跟随进度（保留原有功能）
+            if (progressDirection === 'forward') {
+                lightMask.style.animation = 'lightMove 1.5s infinite linear';
+            } else {
+                lightMask.style.animation = 'lightMoveReverse 1.5s infinite linear';
+            }
+            // 精确裁剪白光范围，匹配填充区域
+            lightMask.style.clipPath = `inset(5px calc(100% - ${barWidth * progress}px) 5px 5px)`;
+
+            // 8. 更新百分比数字（保留）
+            const displayPercent = Math.floor(currentProgressPercent);
+            progressNumber.textContent = `${displayPercent}%`;
+
+            // 9. 加载完成提示（保留）
+            completeTip.style.opacity = displayPercent === 100 ? 1 : 0;
+
+            // 继续动画
+            if (Math.abs(currentProgressPercent - targetProgressPercent) > 0.1) {
+                requestAnimationFrame(updateProgressBar);
+            }
+        }
+
+        // **************************
+        // 数字弹跳动画（保留原有功能）
+        // **************************
+        function triggerNumberAnimation() {
+            progressNumber.classList.add('number-bounce');
+            setTimeout(() => {
+                progressNumber.classList.remove('number-bounce');
+            }, 300);
+        }
+
+        // **************************
+        // 数字记录（保留原有功能）
+        // **************************
+        function recordNumberChange(newValue, type) {
+            const time = new Date().toLocaleTimeString();
+            let text = '';
+            switch (type) {
+                case 'add': text = `[${time}] 手动+1 → ${newValue}%`; break;
+                case 'minus': text = `[${time}] 手动-1 → ${newValue}%`; break;
+                case 'auto': text = `[${time}] 自动递增 → ${newValue}%`; break;
+                case 'reset': text = `[${time}] 重置 → ${newValue}%`; break;
+                case 'init': text = `[${time}] 初始值 → ${newValue}%`; break;
+            }
+            numberRecord.innerHTML += text + '<br>';
+            numberRecord.scrollTop = numberRecord.scrollHeight;
+            // 触发数字弹跳
+            triggerNumberAnimation();
+        }
+
+        // **************************
+        // 自动加载逻辑（保留原有功能）
+        // **************************
+        function autoLoadProgress() {
+            if (autoLoadTimer) clearInterval(autoLoadTimer);
+            autoLoadTimer = setInterval(() => {
+                if (targetProgressPercent < 100) {
+                    targetProgressPercent++;
+                    recordNumberChange(targetProgressPercent, 'auto');
+                    updateProgressBar();
+                } else {
+                    stopAutoLoad();
+                    startBtn.disabled = false;
+                    completeTip.style.opacity = 1;
+                }
+            }, 50);
+        }
+
+        // 停止自动加载（保留）
+        function stopAutoLoad() {
+            isAutoLoading = false;
+            if (autoLoadTimer) {
+                clearInterval(autoLoadTimer);
+                autoLoadTimer = null;
+            }
+            startBtn.disabled = false;
+        }
+
+        // **************************
+        // 按钮事件（保留所有原有功能）
+        // **************************
+        // 自动加载按钮
+        startBtn.addEventListener('click', () => {
+            if (!isAutoLoading) {
+                targetProgressPercent = 0;
+                currentProgressPercent = 0;
+                numberRecord.innerHTML = '数字变化记录：<br>';
+                recordNumberChange(0, 'auto');
+                updateProgressBar();
+                isAutoLoading = true;
+                startBtn.disabled = true;
+                completeTip.style.opacity = 0;
+                autoLoadProgress();
+            }
+        });
+
+        // 手动+1按钮
+        addBtn.addEventListener('click', () => {
+            if (targetProgressPercent < 100) {
+                targetProgressPercent++;
+                recordNumberChange(targetProgressPercent, 'add');
+                updateProgressBar();
+            }
+            stopAutoLoad();
+        });
+
+        // 手动-1按钮
+        minusBtn.addEventListener('click', () => {
+            if (targetProgressPercent > 0) {
+                targetProgressPercent--;
+                recordNumberChange(targetProgressPercent, 'minus');
+                updateProgressBar();
+            }
+            stopAutoLoad();
+        });
+
+        // 重置按钮
+        resetBtn.addEventListener('click', () => {
+            targetProgressPercent = 0;
+            recordNumberChange(0, 'reset');
+            updateProgressBar();
+            stopAutoLoad();
+        });
+
+        // 页面初始化
+        window.onload = () => {
+            updateProgressBar();
+            recordNumberChange(0, 'init');
+        };
+    </script>
+</body>
+</html>
